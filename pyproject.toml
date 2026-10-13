@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel>=0.40.0", "cmake>=3.25.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-vm-runtime"
+version = "0.1.0"
+description = "A production-grade Python Virtual Machine runtime with C/C++ extensions"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Interpreters",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-benchmark>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.setuptools]
+packages = ["py_vm_runtime"]
+
+[tool.setuptools.package-data]
+py_vm_runtime = ["py.typed"]
+
+[tool.distutils.bdist_wheel]
+universal = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+
+[tool.poe.tasks]
+all = ["clean", "build", "test"]
+
+[tool.poe.tasks.build]
+shell = """
+python -c "import os, sys; os.makedirs('build', exist_ok=True); os.chdir('build'); 
+import subprocess; 
+cmake_args = ['cmake', '..', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS=-O3 -Wall -Wextra', '-DCMAKE_CXX_FLAGS=-O3 -Wall -Wextra'];
+if os.path.exists('../CMakeLists.txt'):
+    subprocess.check_call(cmake_args)
+    subprocess.check_call(['cmake', '--build', '.', '--config', 'Release'])
+else:
+    print('No CMakeLists.txt found, skipping native build.')
+"
+python -m build --wheel
+"""
+
+[tool.poe.tasks.test]
+shell = """
+python -c "
+import os, subprocess, sys
+if os.path.exists('tests'):
+    sys.exit(subprocess.call(['pytest']))
+else:
+    print('Tests directory not found, skipping tests.')
+"
+"""
+
+[tool.poe.tasks.clean]
+shell = """
+python -c "
+import shutil, os
+for path in ['build', 'dist', '*.egg-info', '.pytest_cache', '__pycache__']:
+    if '*' in path:
+        import glob
+        for p in glob.glob(path):
+            shutil.rmtree(p, ignore_errors=True)
+    else:
+        shutil.rmtree(path, ignore_errors=True)
+print('Cleanup completed.')
+"
+"""
+
+[tool.poe.tasks.benchmark]
+shell = """
+python -c "
+import os, subprocess, sys
+if os.path.exists('benchmarks') or any(f.startswith('bench') for f in os.listdir('.')):
+    sys.exit(subprocess.call(['pytest', 'benchmarks']))
+else:
+    print('Benchmark directory not found, skipping benchmarks.')
+"
+"""
